@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
@@ -26,6 +26,7 @@ import { label } from "@/lib/format";
 import api from "@/lib/axios";
 import { AddEmployee } from "./hr-actions";
 import { peopleNav } from "@/components/novya/nav";
+import { PEOPLE_PURPOSES as PURPOSES, resolvePeoplePurpose, peoplePurposeHref } from "@/lib/people-purpose";
 type Ref = { _id: string; name?: string; title?: string };
 type Person = {
   _id: string;
@@ -369,13 +370,6 @@ export function HrOverview({
     </div>
   );
 }
-const PURPOSES = [
-  { value: "directory", label: "Work directory" },
-  { value: "people_operations", label: "Assigned people operations" },
-  { value: "recruiting", label: "Recruiting process" },
-  { value: "absence_review", label: "Absence coordination" },
-  { value: "performance_review", label: "Assigned performance review" },
-];
 export function usePeople<T>(path: string, purpose: string) {
   return useQuery({
     queryKey: ["hr", path, purpose],
@@ -396,8 +390,8 @@ export function PeopleHub({
   id?: string;
   tab?: string;
 }) {
-  const [purpose, setPurpose] = useState(
-    section === "recruiting"
+  const router = useRouter(), pathname = usePathname(), searchParams = useSearchParams();
+  const defaultPurpose = section === "recruiting"
       ? "recruiting"
       : section === "absences"
         ? "absence_review"
@@ -405,8 +399,13 @@ export function PeopleHub({
           ? "performance_review"
           : section === "people" && !tab
             ? "directory"
-            : "people_operations",
-  );
+            : "people_operations";
+  const purpose = resolvePeoplePurpose(searchParams.get("purpose"), defaultPurpose);
+  function setPurpose(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("purpose", resolvePeoplePurpose(value, defaultPurpose));
+    router.replace(pathname + "?" + params.toString(), { scroll: false });
+  }
   return (
     <div className="sa-page hr-page">
       <div className="hr-purpose">
@@ -529,7 +528,7 @@ function PeopleDirectory({ purpose }: { purpose: string }) {
                 {list.map((p) => (
                   <tr key={p._id}>
                     <td>
-                      <Link href={"/workspace/people/" + p._id}>
+                      <Link href={peoplePurposeHref("/workspace/people/" + p._id, purpose)}>
                         <span className="hr-initial">
                           {p.name.slice(0, 2).toUpperCase()}
                         </span>
@@ -584,7 +583,7 @@ function MemberDetail({
             actions={
               <>
                 <Badge>{p.status}</Badge>
-                <Button href={"/workspace/requests/new?member=" + id}>
+                <Button href={peoplePurposeHref("/workspace/requests/new?member=" + id, purpose)}>
                   Request change
                 </Button>
               </>
@@ -598,7 +597,7 @@ function MemberDetail({
               <Link
                 key={x}
                 className={"sa-chip " + (tab === x ? "on" : "")}
-                href={"/workspace/people/" + id + "/" + x}
+                href={peoplePurposeHref("/workspace/people/" + id + "/" + x, purpose)}
               >
                 {label(x)}
               </Link>
@@ -704,7 +703,7 @@ function Departments({ id, purpose }: { id?: string; purpose: string }) {
           {list.map((d) => (
             <Link
               className="sa-panel hr-tool"
-              href={"/workspace/departments/" + d._id}
+              href={peoplePurposeHref("/workspace/departments/" + d._id, purpose)}
               key={d._id}
             >
               <Users size={20} />
@@ -730,7 +729,7 @@ function Departments({ id, purpose }: { id?: string; purpose: string }) {
                 <Row
                   title={p.name}
                   detail={p.title}
-                  href={"/workspace/people/" + p._id}
+                  href={peoplePurposeHref("/workspace/people/" + p._id, purpose)}
                   key={p._id}
                 />
               ))}
@@ -867,7 +866,7 @@ function Recruiting({ id, purpose }: { id?: string; purpose: string }) {
                         .map((c) => (
                           <Link
                             key={c._id}
-                            href={"/workspace/recruiting/" + c._id}
+                            href={peoplePurposeHref("/workspace/recruiting/" + c._id, purpose)}
                           >
                             {c.name}
                             <small>{c.job_id?.title}</small>
@@ -950,7 +949,7 @@ function Journeys({ id, purpose }: { id?: string; purpose: string }) {
                 Office, Learn and IAM retain their own evidence. A checklist
                 cannot override missing verification.
               </p>
-              <Button href={"/workspace/people/" + j.member_id?._id}>
+              <Button href={peoplePurposeHref("/workspace/people/" + j.member_id?._id, purpose)}>
                 Open member
               </Button>
             </section>
@@ -997,7 +996,7 @@ function Journeys({ id, purpose }: { id?: string; purpose: string }) {
                   key={j._id}
                   title={j.member_id?.name || "Member journey"}
                   detail={`${label(j.kind)} / ${j.progress}% verified`}
-                  href={"/workspace/onboarding/" + j._id}
+                  href={peoplePurposeHref("/workspace/onboarding/" + j._id, purpose)}
                   status={j.status}
                 />
               ))}
